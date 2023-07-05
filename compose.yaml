@@ -1,0 +1,35 @@
+services:
+  crystal-alpine: &container
+    image: matefarkas/crystal:${CRYSTAL_VERSION:-1.8.2}-alpine
+    build: &build
+      args:
+        CRYSTAL_VERSION: ${CRYSTAL_VERSION:-1.8.2}
+        SHARDS_VERSION: ${SHARDS_VERSION:-0.17.3}
+      context: .
+      dockerfile: Dockerfile
+      platforms:
+        - linux/arm64
+      target: ALPINE-RUNNER
+    init: true
+    network_mode: default
+    user: "${USER_ID:-1000}:${GROUP_ID:-1000}"
+    volumes:
+      - ${PWD}/:${PWD}/:rw
+    working_dir: ${PWD}
+
+  crystal-ubuntu:
+    !!merge <<: *container
+    image: matefarkas/crystal:${CRYSTAL_VERSION:-1.8.2}-ubuntu
+    build:
+      !!merge <<: *build
+      target: UBUNTU-RUNNER
+
+  crystal-alpine-bootstrap:
+    !!merge <<: *container
+    build:
+      !!merge <<: *build
+      dockerfile: Dockerfile.bootstrap
+
+  shards-alpine:
+    !!merge <<: *container
+    entrypoint: /usr/bin/shards

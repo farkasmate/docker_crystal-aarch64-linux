@@ -1,0 +1,68 @@
+# syntax=docker/dockerfile:1-labs
+
+FROM --platform=linux/amd64 crystallang/crystal:1.8.2-alpine AS BUILDER
+
+ARG CRYSTAL_VERSION
+
+WORKDIR /src/
+
+ADD --keep-git-dir=true https://github.com/crystal-lang/crystal.git#${CRYSTAL_VERSION} .
+
+RUN apk add --no-cache \
+    alpine-sdk \
+    llvm15-dev
+
+RUN make release=1 target=aarch64-linux-musl static=1 | grep '^cc' > link.sh
+
+############################
+FROM alpine:3.17.1 AS LINKER
+
+ARG CRYSTAL_VERSION
+
+WORKDIR /src/
+
+ADD --keep-git-dir=true https://github.com/crystal-lang/crystal.git#${CRYSTAL_VERSION} .
+
+COPY --from=BUILDER /src/.build/ .build/
+COPY --from=BUILDER /src/link.sh .
+
+RUN apk add --no-cache \
+    alpine-sdk \
+    gc-dev \
+    libevent-static \
+    libxml2-static\
+    llvm15-dev \
+    llvm15-static \
+    pcre2-dev \
+    zlib-static
+
+RUN make deps \
+  && source link.sh \
+  && strip .build/crystal
+
+###################################
+FROM alpine:3.17.1 AS ALPINE-RUNNER
+
+COPY --from=LINKER /src/src/ /usr/share/crystal/src
+COPY --from=LINKER /src/.build/crystal /usr/bin/crystal
+
+RUN apk add --no-cache \
+    gc-dev \
+    gcc \
+    git \
+    gmp-dev \
+    libevent-static \
+    libxml2-dev \
+    libxml2-static \
+    make \
+    musl-dev \
+    openssl-dev \
+    openssl-libs-static \
+    pcre-dev \
+    pcre2-dev \
+    tzdata \
+    xz-static \
+    yaml-static \
+    zlib-static
+
+ENTRYPOINT ["/usr/bin/crystal"]
